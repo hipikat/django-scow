@@ -1,3 +1,0 @@
-
-class AdminUser(object):
-    pass        
