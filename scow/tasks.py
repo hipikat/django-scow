@@ -1,9 +1,12 @@
 
+#from collections import namedtuple
+
 from os import path
 from textwrap import dedent
 
 import fabric
-from fabric.api import cd, env, run, sudo, prefix
+from fabric.api import cd, env, run, sudo, prefix, put
+from fabric.context_managers import hide
 #from fabric.tasks import Task
 #import fabtools
 from fabtools import (
@@ -22,12 +25,29 @@ from . import (
     PYTHON_SOURCE_URL,
     EZ_SETUP_URL,
     DB_ENGINE_POSTGRES,
+    #PROJECT_SHARED_SECRET,
+    #PROJECT_SHARED_SECRET_PUB,
 )
 from .exceptions import (
     UserDoesNotExistError,
     UserExistsError,
 )
 from .utils import remote_local_file
+
+
+@scow_task
+def share_secret():
+    for secret_path in (
+            env.project.PROJECT_SHARED_SECRET,
+            env.project.PROJECT_SHARED_SECRET_PUB):
+        secret_dir, secret_file = path.split(secret_path)
+        put(secret_path, path.join(env.scow.dirs.ETC_DIR, secret_file))
+
+    #require.files.template_file(
+    #    os.path.join(env.scow.pro)
+    #)
+    #fabric.contrib.
+    #require.files.template_file()
 
 
 @scow_task
@@ -185,23 +205,6 @@ def setup_nginx(*args, **kwargs):
 #def setup_uwsgi_emperor():
 
 
-#@scow_task
-#def install_project(settings_class, tag=None, *args, **kwargs):
-#    print("in install_project-- " + str(env.scow.project_tagged))
-#    #import pdb; pdb.set_trace()
-#    pass
-
-
-#@scow_task
-#def setup_project():
-#    # TODO: Should reference tag
-#    #import pdb; pdb.set_trace()
-#    #with prefix('workon ' + env.project.PROJECT_NAME):
-#    #    run('add2virtualenv src')
-#    #    run('add2virtualenv etc')
-#    pass
-
-
 @scow_task
 def setup_project_virtualenv(force=False, *args, **kwargs):
     run('deactivate', warn_only=True, quiet=True)
@@ -210,22 +213,56 @@ def setup_project_virtualenv(force=False, *args, **kwargs):
 
 
 @scow_task
-def install_project_libs(*args, **kwargs):
+def workon_venv_test(*args, **kwargs):
     with prefix('workon ' + env.scow.project_tagged):
+        print run('pwd')
+        print run('env | grep VIR')
+
+
+@scow_task
+def install_project_requirements(*args, **kwargs):
+    with prefix('workon ' + env.scow.project_tagged):
+        with hide('stdout'):
+            # TODO: Wheel your requirements in
+            run('pip install -r etc/requirements.txt')
         for lib_name, lib_url in env.project.PROJECT_LIBS.items():
             dest_path = path.join('lib', lib_name)
             if 'force' in kwargs and kwargs['force']:
                 run('rm -Rf ' + dest_path, warn_only=True, quiet=True)
-            run('git clone {} {}'.format(lib_url, dest_path))
+            with hide('stdout'):
+                run('git clone {} {}'.format(lib_url, dest_path))
             if files.is_file(path.join(dest_path, 'setup.py')):
-                run('pip install ' + dest_path)
+                with hide('stdout'):
+                    run('pip install ' + dest_path)
             else:
                 run('add2virtualenv ' + dest_path)
 
 
 @scow_task
+def install_project_src(*args, **kwargs):
+    # TODO: from env.scow.DIRS import would be nice
+    with prefix('workon ' + env.scow.project_tagged):
+        prj_dir = env.scow.project_dir
+        if kwargs.get('force', False):
+            #run('rm -Rf ' + env.scow.PROJECT_SRC_DIR)
+            run('rm -Rf ' + prj_dir)
+        with hide('stdout'):
+            run('git clone {} {}'.format(env.project.PROJECT_GIT_URL, prj_dir))
+        with cd(prj_dir):
+            run('setvirtualenvproject')
+            run('add2virtualenv etc')
+            run('add2virtualenv src')
+        if hasattr(env.project, 'POST_INSTALL'):
+            for line in env.project.POST_INSTALL.splitlines():
+                line.strip() and run(line.strip())
+    install_project_requirements(*args, **kwargs)
+
+
+
+@scow_task
 def init_droplet(*args, **kwargs):
     create_missing_admins()
+    upgrade_deb_packages()
     install_deb_packages()
     setup_local_python()
     setup_django_databases()
@@ -235,6 +272,5 @@ def init_droplet(*args, **kwargs):
 
 @scow_task
 def install_project(settings_class, *args, **kwargs):
-    setup_project_virtualenv()
-
-    install_project_libs(*args, **kwargs)
+    setup_project_virtualenv(*args, **kwargs)
+    install_project_src(*args, **kwargs)

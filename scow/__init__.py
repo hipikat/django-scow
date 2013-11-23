@@ -14,7 +14,7 @@ from fabric.api import (
 from fabric.tasks import Task, WrappedCallableTask as FabricWrappedCallableTask
 #import fabtools
 from fabtools import require
-#from cinch.utils import FHSDirs
+from cinch.utils import FHSDirs
 
 import project_settings
 
@@ -34,6 +34,8 @@ DEBIAN_PACKAGES = (
 
     'postgresql-server-dev-9.1',
 
+    'git',
+
     # TODO: Mechanism for enabling modules of machine configuration...
     # (currently packages in any ADMIN user's 'requires_deb_packages' profile
     # dict's key will get installed with init_droplet too).
@@ -46,11 +48,13 @@ PYTHON_SYSTEM_PACKAGES = (
     'virtualenvwrapper',
 )
 
+# TODO: Make these runtime-editable settings
 PYTHON_SRC_DIR = 'Python-{version}'
 PYTHON_SOURCE_URL = 'http://www.python.org/ftp/python/{version}/' + PYTHON_SRC_DIR + '.tgz'
 EZ_SETUP_URL = 'https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py'
 REGISTRY_DIR = '/var/local/scow/registry'
 CONFIG_DIR = '/etc/scow'
+PROJECTS_DIR = '/opt'
 
 DB_ENGINE_POSTGRES = 'django.db.backends.postgresql_psycopg2'
 
@@ -75,11 +79,15 @@ class ScowEnv(object):
     registry = ScowRegistry()
     registry_dir = REGISTRY_DIR
     config_dir = CONFIG_DIR
+    projects_dir = PROJECTS_DIR
 
     def __init__(self, *args, **kwargs):
         # Note that self will be the same object as env.scow
         require.files.directory(self.registry_dir)
         require.files.directory(self.config_dir)
+        require.files.directory(self.projects_dir)
+        #self.project_dir = path.join(self.projects_dir, self.project_tagged)
+        #self.dirs = FHSDirs(self.project_dir)
 
 
 class LazyScowEnv(object):
@@ -146,6 +154,10 @@ class WrappedCallableTask(FabricWrappedCallableTask, ScowTask):
         # database name, repo checkout name, config file name
         env.scow.project_tag = '-' + str(kwargs['tag']) if 'tag' in kwargs else ''
         env.scow.project_tagged = env.project.PROJECT_NAME + env.scow.project_tag
+
+        env.scow.project_dir = path.join(env.scow.projects_dir, env.scow.project_tagged)
+        env.scow.dirs = FHSDirs(env.scow.project_dir)
+        #import pdb; pdb.set_trace()
 
         super(WrappedCallableTask, self).run(*args, **kwargs)
 
