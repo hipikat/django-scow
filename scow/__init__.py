@@ -1,7 +1,7 @@
 
 #from contextlib import contextmanager
 from getpass import getuser
-from os import path
+from os import environ, path
 #import posixpath
 
 #import fabric

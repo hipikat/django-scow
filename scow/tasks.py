@@ -5,7 +5,7 @@ from os import path
 from textwrap import dedent
 
 import fabric
-from fabric.api import cd, env, run, sudo, prefix, put
+from fabric.api import cd, env, run, sudo, prefix
 from fabric.context_managers import hide
 #from fabric.tasks import Task
 #import fabtools
@@ -115,6 +115,10 @@ def upgrade_deb_packages():
 @scow_task
 def install_deb_packages():
     pkgs = set(CORE_DEBIAN_PACKAGES)
+    # Add packages required by the project
+    if hasattr(env.project, 'REQUIRE_DEB_PACKAGES'):
+        pkgs = pkgs | set(env.project.REQUIRE_DEB_PACKAGES)
+    # Add packages requested by admins
     for admin_profile in env.project.ADMINS:
         if 'requires_deb_packages' in 'admin_profile':
             pkgs = pkgs | set(admin_profile['requires_deb_packages'])
@@ -137,7 +141,7 @@ def setup_local_python_tools(*args, **kwargs):
             export PROJECT_HOME=/opt
             """))
 
-    abric.contrib.files.append(
+    fabric.contrib.files.append(
         '/etc/profile',
         dedent("""
         # Virtualenvwrapper shim [is this a shim?? what is a shim?] installed by scow
@@ -169,24 +173,34 @@ def setup_local_python(*args, **kwargs):
 
 
 @scow_task
-def setup_postgres(name, user, password):
+def setup_postgres(*args, **kwargs):
     require.postgres.server()
-    require.postgres.user(user, password)
+    for admin in env.project.ADMINS:
+        if 'username' in admin:
+            require.postgres.user(admin['username'], 'insecure', superuser=True)
+    require.postgres.user('root', 'insecure', superuser=True)
+
+
+# TODO: Tangle with passwords properly
+@scow_task
+def setup_postgres_database(name, user, password, *args, **kwargs):
+    require.postgres.server()
+    require.postgres.user(user, 'insecure', superuser=True)
     require.postgres.database(name, user)
 
 
 @scow_task
-def setup_django_database(db):
+def setup_django_database(db, *args, **kwargs):
     if db['ENGINE'] == DB_ENGINE_POSTGRES:
-        setup_postgres(db['NAME'] + env.scow.project_tag, db['USER'], db['PASSWORD'])
+        setup_postgres_database(db['NAME'] + env.scow.project_tag, db['USER'], db['PASSWORD'])
     else:
         raise NotImplementedError("Unknown database engine: " + db['ENGINE'])
 
 
 @scow_task
-def setup_django_databases():
+def setup_django_databases(*args, **kwargs):
     for db in env.project.DATABASES.values():
-        setup_django_database(db)
+        setup_django_database(db, *args, **kwargs)
 
 
 @scow_task
@@ -237,8 +251,8 @@ def install_project_requirements(*args, **kwargs):
             with hide('stdout'):
                 run('git clone {} {}'.format(lib_url, dest_path))
             if files.is_file(path.join(dest_path, 'setup.py')):
-                with hide('stdout'):
-                    run('pip install ' + dest_path)
+                #with hide('stdout'):
+                run('pip install ' + dest_path)
             else:
                 run('add2virtualenv ' + dest_path)
 
@@ -246,13 +260,30 @@ def install_project_requirements(*args, **kwargs):
 @scow_task
 def project_post_install(*args, **kwargs):
     with prefix('workon ' + env.scow.project_tagged):
+        # Run custom shell commands defined by the project
         if hasattr(env.project, 'POST_INSTALL'):
             for line in env.project.POST_INSTALL.splitlines():
                 line.strip() and run(line.strip())
 
 
+# TODO: Remove these project-specific deps
 @scow_task
-def install_project_src(*args, **kwargs):
+def project_database_init(*args, **kwargs):
+    with prefix('workon ' + env.scow.project_tagged):
+        run('DJANGO_SETTINGS_CLASS=Core python manage.py syncdb')
+        run('python manage.py syncdb')
+        for app in (
+                'django_extensions',
+                'feincms.module.medialibrary',
+                'feincms.module.page',
+                'elephantblog',
+                'hipikat'):
+            run('python manage.py migrate ' + app)
+        run('python manage.py migrate')
+
+
+@scow_task
+def install_project_src(settings_class, *args, **kwargs):
     # TODO: from env.scow.DIRS import would be nice
     with prefix('workon ' + env.scow.project_tagged):
         prj_dir = env.scow.project_dir
@@ -265,18 +296,23 @@ def install_project_src(*args, **kwargs):
             run('setvirtualenvproject')
             run('add2virtualenv etc')
             run('add2virtualenv src')
+    set_project_settings_class(str(settings_class), *args, **kwargs)
     project_post_install(*args, **kwargs)
-        # Install postactivate hook
     install_project_requirements(*args, **kwargs)
+    project_database_init(*args, **kwargs)
 
 
 @scow_task
 def set_project_settings_class(settings_class, *args, **kwargs):
     # TODO: Abstract something
+    #print('***ONE')
+    require.directory(path.join(env.scow.dirs.VAR_DIR, 'env'))
     require.files.file(
         path.join(env.scow.dirs.VAR_DIR, 'env', 'DJANGO_SETTINGS_CLASS'),
-        contents=settings_class)
-
+        contents=str(settings_class))
+    print('***TWO')
+    #require.files.file(
+    #        )
 
 
 @scow_task
@@ -285,7 +321,7 @@ def init_droplet(*args, **kwargs):
     upgrade_deb_packages()
     install_deb_packages()
     setup_local_python()
-    setup_django_databases()
+    setup_postgres()
     setup_nginx()
     #setup_uwsgi_emperor()
 
@@ -293,5 +329,6 @@ def init_droplet(*args, **kwargs):
 @scow_task
 def install_project(settings_class, *args, **kwargs):
     setup_project_virtualenv(*args, **kwargs)
-    install_project_src(*args, **kwargs)
-    set_project_settings_class(settings_class)
+    setup_django_databases(*args, **kwargs)
+    install_project_src(settings_class, *args, **kwargs)
+    #ggset_project_settings_class(str(settings_class), *args, **kwargs)
