@@ -39,12 +39,13 @@ from .utils import (
 
 
 @scow_task
-def share_secret():
-    for secret_path in (
-            env.project.PROJECT_SHARED_SECRET,
-            env.project.PROJECT_SHARED_SECRET_PUB):
-        secret_dir, secret_file = path.split(secret_path)
-        put(secret_path, path.join(env.scow.dirs.ETC_DIR, secret_file))
+def share_secrets():
+    pass
+    #for secret_path in (
+    #        env.project.PROJECT_SHARED_SECRET,
+    #        env.project.PROJECT_SHARED_SECRET_PUB):
+    #    secret_dir, secret_file = path.split(secret_path)
+    #    put(secret_path, path.join(env.scow.dirs.ETC_DIR, secret_file))
 
     #require.files.template_file(
     #    os.path.join(env.scow.pro)
