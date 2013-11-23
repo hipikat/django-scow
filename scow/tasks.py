@@ -1,14 +1,21 @@
 
 from os import path
+from textwrap import dedent
+
+import fabric
 from fabric.api import cd, env, run, sudo, prefix
 #from fabric.tasks import Task
+#import fabtools
 from fabtools import (
+    deb,
+    files,
     require,
     user,
 )
 from project_settings import PYTHON_VERSION
 from . import (
     scow_task,
+    CONFIG_DIR,
     DEBIAN_PACKAGES as CORE_DEBIAN_PACKAGES,
     PYTHON_SYSTEM_PACKAGES,
     PYTHON_SRC_DIR,
@@ -71,12 +78,48 @@ def recreate_admin(username):
 
 
 @scow_task
+def update_deb_packages():
+    deb.update_index()
+
+
+@scow_task
+def upgrade_deb_packages():
+    update_deb_packages()
+    deb.upgrade()
+
+
+@scow_task
 def install_deb_packages():
     pkgs = set(CORE_DEBIAN_PACKAGES)
     for admin_profile in env.project.ADMINS:
         if 'requires_deb_packages' in 'admin_profile':
             pkgs = pkgs | set(admin_profile['requires_deb_packages'])
     require.deb.packages(pkgs)
+
+
+@scow_task
+def setup_local_python_tools(*args, **kwargs):
+    # Install easy_install and pip
+    run('wget {} -O - | /usr/local/bin/python'.format(EZ_SETUP_URL))
+    run('/usr/local/bin/easy_install pip')
+    env.scow.registry.LOCAL_PYTHON_INSTALLED = True
+    run('/usr/local/bin/pip install ' + ' '.join(PYTHON_SYSTEM_PACKAGES))
+    venvwrapper_env_script = path.join(CONFIG_DIR, 'venvwrapper-settings.sh')
+    require.files.file(
+        venvwrapper_env_script,
+        contents=dedent("""
+            # Virtualenv wrapper settings used by django-scow
+            export WORKON_HOME=/var/env
+            export PROJECT_HOME=/opt
+            """))
+    fabric.contrib.files.append(
+        '/etc/profile',
+        dedent("""
+            # Virtualenvwrapper shim [is this a shim?? what is a shim?] installed by scow
+            . {}
+            . /usr/local/bin/virtualenvwrapper.sh
+            """.format(venvwrapper_env_script)),
+    )
 
 
 @scow_task
@@ -96,11 +139,8 @@ def setup_local_python(*args, **kwargs):
         run('./configure')
         run('make')
         run('make install')
-    # Install easy_install and pip
-    run('wget {} -O - | /usr/local/bin/python'.format(EZ_SETUP_URL))
-    run('/usr/local/bin/easy_install pip')
-    env.scow.registry.LOCAL_PYTHON_INSTALLED = True
-    run('/usr/local/bin/pip install ' + ' '.join(PYTHON_SYSTEM_PACKAGES))
+
+    setup_local_python_tools()
 
 
 @scow_task
@@ -113,7 +153,7 @@ def setup_postgres(name, user, password):
 @scow_task
 def setup_django_database(db):
     if db['ENGINE'] == DB_ENGINE_POSTGRES:
-        setup_postgres(db['NAME'], db['USER'], db['PASSWORD'])
+        setup_postgres(db['NAME'] + env.scow.project_tag, db['USER'], db['PASSWORD'])
     else:
         raise NotImplementedError("Unknown database engine: " + db['ENGINE'])
 
@@ -145,40 +185,56 @@ def setup_nginx(*args, **kwargs):
 #def setup_uwsgi_emperor():
 
 
-@scow_task
-def install_project(settings_class, tag=None, *args, **kwargs):
-    print("in install_project-- " + str(env.scow.project_tagged))
-    #import pdb; pdb.set_trace()
-    pass
+#@scow_task
+#def install_project(settings_class, tag=None, *args, **kwargs):
+#    print("in install_project-- " + str(env.scow.project_tagged))
+#    #import pdb; pdb.set_trace()
+#    pass
+
+
+#@scow_task
+#def setup_project():
+#    # TODO: Should reference tag
+#    #import pdb; pdb.set_trace()
+#    #with prefix('workon ' + env.project.PROJECT_NAME):
+#    #    run('add2virtualenv src')
+#    #    run('add2virtualenv etc')
+#    pass
 
 
 @scow_task
-def setup_project():
-    # TODO: Should reference tag
-    import pdb; pdb.set_trace()
-    #with prefix('workon ' + env.project.PROJECT_NAME):
-    #    run('add2virtualenv src')
-    #    run('add2virtualenv etc')
+def setup_project_virtualenv(force=False, *args, **kwargs):
+    run('deactivate', warn_only=True, quiet=True)
+    run('rmvirtualenv ' + env.scow.project_tagged, warn_only=True, quiet=True)
+    run('mkvirtualenv ' + env.scow.project_tagged)
 
 
 @scow_task
 def install_project_libs(*args, **kwargs):
-    # TODO: Should reference tag
-    #with prefix('workon ' + env.scow.project_name_tagged):
-    with prefix('workon ' + env.project.PROJECT_NAME):
+    with prefix('workon ' + env.scow.project_tagged):
         for lib_name, lib_url in env.project.PROJECT_LIBS.items():
             dest_path = path.join('lib', lib_name)
             if 'force' in kwargs and kwargs['force']:
                 run('rm -Rf ' + dest_path, warn_only=True, quiet=True)
             run('git clone {} {}'.format(lib_url, dest_path))
-            run('add2virtualenv ' + dest_path)
+            if files.is_file(path.join(dest_path, 'setup.py')):
+                run('pip install ' + dest_path)
+            else:
+                run('add2virtualenv ' + dest_path)
 
 
 @scow_task
-def init_droplet():
+def init_droplet(*args, **kwargs):
     create_missing_admins()
     install_deb_packages()
     setup_local_python()
     setup_django_databases()
     setup_nginx()
     #setup_uwsgi_emperor()
+
+
+@scow_task
+def install_project(settings_class, *args, **kwargs):
+    setup_project_virtualenv()
+
+    install_project_libs(*args, **kwargs)

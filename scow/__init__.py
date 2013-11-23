@@ -42,12 +42,15 @@ DEBIAN_PACKAGES = (
 
 PYTHON_SYSTEM_PACKAGES = (
     'uwsgi',
+    'virtualenv',
+    'virtualenvwrapper',
 )
 
 PYTHON_SRC_DIR = 'Python-{version}'
 PYTHON_SOURCE_URL = 'http://www.python.org/ftp/python/{version}/' + PYTHON_SRC_DIR + '.tgz'
 EZ_SETUP_URL = 'https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py'
 REGISTRY_DIR = '/var/local/scow/registry'
+CONFIG_DIR = '/etc/scow'
 
 DB_ENGINE_POSTGRES = 'django.db.backends.postgresql_psycopg2'
 
@@ -71,10 +74,12 @@ class ScowRegistry(object):
 class ScowEnv(object):
     registry = ScowRegistry()
     registry_dir = REGISTRY_DIR
+    config_dir = CONFIG_DIR
 
     def __init__(self, *args, **kwargs):
         # Note that self will be the same object as env.scow
         require.files.directory(self.registry_dir)
+        require.files.directory(self.config_dir)
 
 
 class LazyScowEnv(object):
@@ -137,10 +142,10 @@ class WrappedCallableTask(FabricWrappedCallableTask, ScowTask):
         """
         Do special env setup for ScowTasks here.
         """
-        # project_tagged should be used for, for instance:
+        # project_tag[ged] should be used for, for instance:
         # database name, repo checkout name, config file name
-        env.scow.project_tagged = env.project.PROJECT_NAME +\
-            ('-' + str(kwargs['tag']) if 'tag' in kwargs else '')
+        env.scow.project_tag = '-' + str(kwargs['tag']) if 'tag' in kwargs else ''
+        env.scow.project_tagged = env.project.PROJECT_NAME + env.scow.project_tag
 
         super(WrappedCallableTask, self).run(*args, **kwargs)
 
