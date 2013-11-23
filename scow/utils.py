@@ -2,8 +2,14 @@
 import os
 from os import path
 import tempfile
-from fabric.api import local, cd, run
+from fabric.api import local, cd, run, env
 from fabtools import require
+
+
+#def append_admin_profiles(content=''):
+#    #fabric.contrib.files.append(
+#    for admin in env.project.ADMINS:
+       
 
 
 class remote_local_file(object):

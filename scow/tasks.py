@@ -32,7 +32,10 @@ from .exceptions import (
     UserDoesNotExistError,
     UserExistsError,
 )
-from .utils import remote_local_file
+from .utils import (
+    remote_local_file,
+    #append_admin_profiles,
+)
 
 
 @scow_task
@@ -132,13 +135,14 @@ def setup_local_python_tools(*args, **kwargs):
             export WORKON_HOME=/var/env
             export PROJECT_HOME=/opt
             """))
-    fabric.contrib.files.append(
+
+    abric.contrib.files.append(
         '/etc/profile',
         dedent("""
-            # Virtualenvwrapper shim [is this a shim?? what is a shim?] installed by scow
-            . {}
-            . /usr/local/bin/virtualenvwrapper.sh
-            """.format(venvwrapper_env_script)),
+        # Virtualenvwrapper shim [is this a shim?? what is a shim?] installed by scow
+        . {}
+        . /usr/local/bin/virtualenvwrapper.sh
+        """.format(venvwrapper_env_script)),
     )
 
 
@@ -239,6 +243,14 @@ def install_project_requirements(*args, **kwargs):
 
 
 @scow_task
+def project_post_install(*args, **kwargs):
+    with prefix('workon ' + env.scow.project_tagged):
+        if hasattr(env.project, 'POST_INSTALL'):
+            for line in env.project.POST_INSTALL.splitlines():
+                line.strip() and run(line.strip())
+
+
+@scow_task
 def install_project_src(*args, **kwargs):
     # TODO: from env.scow.DIRS import would be nice
     with prefix('workon ' + env.scow.project_tagged):
@@ -252,10 +264,17 @@ def install_project_src(*args, **kwargs):
             run('setvirtualenvproject')
             run('add2virtualenv etc')
             run('add2virtualenv src')
-        if hasattr(env.project, 'POST_INSTALL'):
-            for line in env.project.POST_INSTALL.splitlines():
-                line.strip() and run(line.strip())
+    project_post_install(*args, **kwargs)
+        # Install postactivate hook
     install_project_requirements(*args, **kwargs)
+
+
+@scow_task
+def set_project_settings_class(settings_class, *args, **kwargs):
+    # TODO: Abstract something
+    require.files.file(
+        path.join(env.scow.dirs.VAR_DIR, 'env', 'DJANGO_SETTINGS_CLASS'),
+        contents=settings_class)
 
 
 
@@ -274,3 +293,4 @@ def init_droplet(*args, **kwargs):
 def install_project(settings_class, *args, **kwargs):
     setup_project_virtualenv(*args, **kwargs)
     install_project_src(*args, **kwargs)
+    set_project_settings_class(settings_class)
