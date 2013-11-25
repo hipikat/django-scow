@@ -52,12 +52,76 @@ PYTHON_SYSTEM_PACKAGES = (
 PYTHON_SRC_DIR = 'Python-{version}'
 PYTHON_SOURCE_URL = 'http://www.python.org/ftp/python/{version}/' + PYTHON_SRC_DIR + '.tgz'
 EZ_SETUP_URL = 'https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py'
-REGISTRY_DIR = '/var/local/scow/registry'
-APPS_VAR_DIR = '/var/local/scow/apps'
-CONFIG_DIR = '/etc/scow'
-PROJECTS_DIR = '/opt'
 
 DB_ENGINE_POSTGRES = 'django.db.backends.postgresql_psycopg2'
+
+
+def require_dir(remote_dir):
+    """
+    Require a remote directory to exist. This function wraps
+    `fabtools.require.files.directory` so that it's only called on directories
+    that haven't already been seen in this session.
+    """
+    if remote_dir not in env.session.seen_dirs:
+        require.files.directory(remote_dir)
+        env.session.seen_dirs.append(remote_dir)
+
+
+class RemoteFilesystemCache(object):
+    """
+    An object that takes arbitrary attribute lookup and assignment,
+    and retrieves/saves the values to files in a remote directory,
+    simply using `eval()` and `repr()`.
+    """
+    def __init__(self, remote_dir, *args, **kwargs):
+        require_dir(remote_dir)
+
+
+class ScowSession(object):
+    """
+    General container for actions that have happened since fab was launched.
+    """
+    # List of directories we know exist on the remote end
+    seen_dirs = set()
+
+
+class ScowEnv(object):
+    """
+    The singleton env.scow object is an instance of this class, created the
+    first time a ScowTask is called. This is the private namespace tasks,
+    which TODOLipsum scow.tasks_completed
+
+    To customise scow's behaviour, subclass this class and make it the default
+    by somehow TODOLipsum
+
+    Initialising this class adds several methods to the top-level env object.
+    Should we work out a way to namespace them better?
+    """
+    #initialised = False
+
+    # Contains files read/written on env.machine attribute access/assignment
+    MACHINE_REGISTRY_DIR = '/var/local/scow/registry'
+    # Variable files for apps (e.g. .sock files) live in APPS_VAR_DIR/app-name/
+    APPS_VAR_DIR = '/var/local/scow/apps'
+    # Configuration files used by scow on this machine
+    CONFIG_DIR = '/etc/scow'
+    # Home for projects installed by scow
+    PROJECTS_DIR = '/opt'
+
+    def __init__(self, *args, **kwargs):
+        self.machine = RemoteFilesystemCache(self.MACHINE_REGISTRY_DIR)
+        self.session = ScowSession()
+
+        # Create easy direct-from-env access to objects commonly
+        # accessed from tasks
+        for top_level_attr in ('machine', 'session'):
+            env[top_level_attr] = getattr(self, top_level_attr)
+
+        super(ScowEnv, self).__init__(*args, **kwargs)
+        
+
+
+
 
 
 # TODO: Serious memoization?
@@ -77,6 +141,13 @@ class ScowRegistry(object):
 
 
 class ScowEnv(object):
+    """
+    The singleton env.scow object is an instance of this class, created the
+    first time a ScowTask is called. This is the private namespace tasks,
+    which TODOLipsum scow.tasks_completed
+    """
+    initialised = False
+
     registry = ScowRegistry()
     registry_dir = REGISTRY_DIR
     config_dir = CONFIG_DIR
@@ -151,6 +222,9 @@ class WrappedCallableTask(FabricWrappedCallableTask, ScowTask):
         """
         Do special env setup for ScowTasks here.
         """
+        #if ['scow'] not in env:
+
+
         # project_tag[ged] should be used for, for instance:
         # database name, repo checkout name, config file name
         env.scow.project_tag = '-' + str(kwargs['tag']) if 'tag' in kwargs else ''
@@ -166,13 +240,14 @@ class WrappedCallableTask(FabricWrappedCallableTask, ScowTask):
 
 def scow_task(*args, **kwargs):
     invoked = bool(not args or kwargs)
+    # If you specify a different task_class, we won't make sure that it's a
+    # subclass of scow.WrappedCallableTask, since we're all consenting adults...
+    # but if it doesn't implement the interface things WILL go wrong.
     task_class = kwargs.pop("task_class", WrappedCallableTask)
     if not invoked:
         func, args = args[0], ()
-
     def wrapper(func):
         return task_class(func, *args, **kwargs)
-
     return wrapper if invoked else wrapper(func)
 
 
