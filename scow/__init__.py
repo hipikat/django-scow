@@ -53,6 +53,7 @@ PYTHON_SRC_DIR = 'Python-{version}'
 PYTHON_SOURCE_URL = 'http://www.python.org/ftp/python/{version}/' + PYTHON_SRC_DIR + '.tgz'
 EZ_SETUP_URL = 'https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py'
 REGISTRY_DIR = '/var/local/scow/registry'
+APPS_VAR_DIR = '/var/local/scow/apps'
 CONFIG_DIR = '/etc/scow'
 PROJECTS_DIR = '/opt'
 
@@ -157,6 +158,7 @@ class WrappedCallableTask(FabricWrappedCallableTask, ScowTask):
 
         env.scow.project_dir = path.join(env.scow.projects_dir, env.scow.project_tagged)
         env.scow.dirs = FHSDirs(env.scow.project_dir)
+        env.scow.project_var_dir = path.join(APPS_VAR_DIR, env.scow.project_tagged)
         #import pdb; pdb.set_trace()
 
         super(WrappedCallableTask, self).run(*args, **kwargs)

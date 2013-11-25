@@ -14,6 +14,7 @@ from fabtools import (
     files,
     require,
     user,
+    supervisor,
 )
 from project_settings import PYTHON_VERSION
 from . import (
@@ -27,6 +28,9 @@ from . import (
     DB_ENGINE_POSTGRES,
     #PROJECT_SHARED_SECRET,
     #PROJECT_SHARED_SECRET_PUB,
+
+    # Sub-tasks
+    tend,
 )
 from .exceptions import (
     UserDoesNotExistError,
@@ -64,6 +68,7 @@ def create_admin(username):
     else:
         raise AttributeError("No dict with username {} in env.project.ADMINS (which should "
                              "be a list of dictionaries of admin profiles)".format(username))
+    # Set up any ssh_public_keys and the shell, if set in the user's ADMINS dictionary
     # TODO: Process more kwargs accepted by fabtools.require.user
     user_options = ('ssh_public_keys', 'shell',)
     user_kwargs = {kwarg: admin[kwarg] for kwarg in user_options if kwarg in admin}
@@ -74,6 +79,10 @@ def create_admin(username):
     else:
         require.users.user(username, **user_kwargs)
     require.users.sudoer(username)
+    # Process lines in admin['post_create'] - without throwing up on error
+    #if 'post_create' in admin:
+    #    for line in admin['post_create'].splitlines():
+    #        line.strip() and sudo(line.strip(), user=username)
 
 
 @scow_task
@@ -207,6 +216,8 @@ def setup_django_databases(*args, **kwargs):
 def setup_nginx(*args, **kwargs):
     require.nginx.server()
 
+    #TODO: delete sites-enabled/default
+
     #server_name = env.project.ROOT_FQDN
     #if 'server_suffix' in kwargs:
     #    server_name += '.' + kwargs['server_suffix']
@@ -313,6 +324,42 @@ def set_project_settings_class(settings_class, *args, **kwargs):
     print('***TWO')
     #require.files.file(
     #        )
+
+
+# TODO: uwsgi config template creation
+
+
+@scow_task
+def enable_app_server(*args, **kwargs):
+    # require directory env.scow.project_var_dir exists, owner www-data
+    proc_name = env.scow.project_tagged
+    with prefix('workon ' + env.scow.project_tagged):
+        uwsgi_bin = run('echo $VIRTUAL_ENV/bin/uwsgi')
+        uwsgi_logfile = run('echo `cat $VIRTUAL_ENV/$VIRTUALENVWRAPPER_PROJECT_FILENAME`/var/log/uwsgi.log')
+    web_user = 'www-data'
+    uwsgi_cmd=' '.join('''
+        {uwsgi_bin}
+        --socket {socket_path}
+        --module {wsgi_app_module}
+        --uid {web_user}
+        --master
+        --logto {uwsgi_logfile}
+        '''.format(
+            #process_name=env.scow.project_tagged,
+            uwsgi_bin=uwsgi_bin,
+            socket_path=path.join(env.scow.project_var_dir, 'uwsgi.sock'),
+            wsgi_app_module=env.project.WSGI_APP_MODULE,
+            web_user=web_user,
+            uwsgi_logfile=uwsgi_logfile,
+        ).split())
+
+    require.directory(env.scow.project_var_dir, owner=web_user)
+    require.supervisor.process(
+        proc_name,
+        command=uwsgi_cmd,
+        user=web_user,
+    )
+    supervisor.start_process(proc_name)
 
 
 @scow_task
