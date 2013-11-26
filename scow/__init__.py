@@ -110,16 +110,13 @@ class ScowEnv(object):
         if not self.machine.initialised:
             require_dir(self.APPS_VAR_DIR)
             require_dir(self.CONFIG_DIR)
-
-        #self.machine.initialised = True
+        self.machine.initialised = True
 
         super(ScowEnv, self).__init__(*args, **kwargs)
 
 
 class ScowTask(Task):
     """Add local and remote project-related variables to Fabric's env."""
-    #def __init__(self, *args, **kwargs):
-    #    return super(ScowTask, self).__init__(*args, **kwargs)
 
     def run(self, *args, **kwargs):
 
@@ -139,24 +136,16 @@ class ScowTask(Task):
 
         env.force = bool(kwargs.pop('force', False))
 
+        # TODO: Do something useful with this logging
         env.session.task_history.append(('started', self.__name__))
-
-        #from pprint import pprint
-        #print "**************",
-        #pprint(env.session.task_history)
-        #import pdb; pdb.set_trace()
-
-        #super(ScowTask, self).run(*args, **kwargs)
-        env.session.task_history.append(('finished', self))
+        super(ScowTask, self).run(*args, **kwargs)
+        env.session.task_history.append(('finished', self.__name__))
 
 
 def scow_task(*args, **kwargs):
     """Replacement `fabric.decorators.task`, which bases the task on ScowTask."""
-    class ScowWrappedCallableTask(WrappedCallableTask, ScowTask):
-        def run(self, *args, **kwargs):
-            # Bypass WrappedCallableTask.run, which would call wrapped immediately.
-            ScowTask.run(self, *args, **kwargs)
-            return self.wrapped(*args, **kwargs)
+    class ScowWrappedCallableTask(ScowTask, WrappedCallableTask, Task):
+        pass
 
     invoked = bool(not args or kwargs)
     if not invoked:
@@ -167,3 +156,6 @@ def scow_task(*args, **kwargs):
         return ScowWrappedCallableTask(func, *args, **kwargs)
 
     return wrapper if invoked else wrapper(func)
+
+
+from .__main__ import init_droplet, install_project
