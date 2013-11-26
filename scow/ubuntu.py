@@ -53,4 +53,9 @@ def install_packages():
     for admin_profile in env.project.ADMINS:
         if 'require_deb_packages' in admin_profile:
             pkgs = pkgs | set(admin_profile['require_deb_packages'])
-    require.deb.packages(pkgs)
+
+    to_install = sorted(list(pkgs))
+    previously_installed = env.machine.installed_packages or []
+    if previously_installed != to_install or env.force:
+        require.deb.packages(pkgs)
+        env.machine.installed_packages = to_install

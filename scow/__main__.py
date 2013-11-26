@@ -1,5 +1,5 @@
 
-from . import ubuntu, users, scow_task
+from . import scow_task, ubuntu, users, python
 
 
 @scow_task
@@ -8,7 +8,7 @@ def init_droplet(*args, **kwargs):
     ubuntu.upgrade_packages()
     ubuntu.install_packages()
     users.create_missing_admins()
-    #setup_local_python()
+    python.setup_local_python(env.project.PYTHON_VERSION)
     #setup_postgres()
     #setup_nginx()
     #setup_uwsgi_emperor()
