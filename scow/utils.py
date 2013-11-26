@@ -44,3 +44,10 @@ class remote_local_file(object):
 
     def __exit__(self, typ, val, traceback):
         run('rm -Rf ' + self.remote_tmp_dir)
+
+
+def get_admin_profile(username):
+    for admin_profile in env.project.ADMINS:
+        if admin_profile['username'] == username:
+            return admin_profile
+    raise AttributeError("No admin profile found with username: " + username)
