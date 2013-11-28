@@ -1,4 +1,5 @@
 
+from fabric.api import env
 from . import scow_task, ubuntu, users, python
 
 
@@ -8,7 +9,8 @@ def init_droplet(*args, **kwargs):
     ubuntu.upgrade_packages()
     ubuntu.install_packages()
     users.create_missing_admins()
-    python.setup_local_python(env.project.PYTHON_VERSION)
+    if not getattr(env.project, 'USE_SYSTEM_PYTHON', False):
+        python.setup_local_python(env.project.PYTHON_VERSION)
     #setup_postgres()
     #setup_nginx()
     #setup_uwsgi_emperor()

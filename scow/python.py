@@ -5,7 +5,7 @@ import fabric
 from fabric.api import env, run, cd
 from fabric.context_managers import hide
 from fabtools import require
-from . import scow_task
+from . import scow_task, require_dir
 
 
 PYTHON_SRC_DIR = 'Python-{version}'
@@ -28,13 +28,18 @@ def setup_local_python_tools(*args, **kwargs):
     #env.scow.registry.LOCAL_PYTHON_INSTALLED = True
     run('/usr/local/bin/pip install ' + ' '.join(PYTHON_SYSTEM_PACKAGES))
     venvwrapper_env_script = path.join(env.scow.CONFIG_DIR, 'venvwrapper-settings.sh')
+    venvwrapper_dirs = {
+        'workon_home': env.scow.VIRTUALENVWRAPPER_ENV_DIR,
+        'project_home': env.scow.VIRTUALENVWRAPPER_PROJECT_DIR,
+    }
+    require_dir(workon_home=env.scow.VIRTUALENVWRAPPER_ENV_DIR)
     require.files.file(
         venvwrapper_env_script,
         contents=dedent("""
             # Virtualenv wrapper settings used by django-scow
-            export WORKON_HOME=/var/env
-            export PROJECT_HOME=/opt
-            """))
+            export WORKON_HOME={workon_home}
+            export PROJECT_HOME={project_home}
+            """.format(**venvwrapper_dirs)))
 
     fabric.contrib.files.append(
         '/etc/profile',

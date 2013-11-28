@@ -37,7 +37,7 @@ def update_index():
 @scow_task
 def upgrade_packages():
     """Upgrade Debian packages (with a fresh index)"""
-    if update_index not in env.tasks_completed:
+    if update_index not in env.session.tasks_finished:
         update_index()
     deb.upgrade()
 

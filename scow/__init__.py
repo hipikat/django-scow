@@ -69,7 +69,16 @@ class ScowSession(object):
     """
     # List of directories we know exist on the remote end
     seen_dirs = set()
+    # List of tuples of ('started|finished', task_fn)
     task_history = []
+    
+    @property
+    def tasks_started(self):
+        return [task[1] for task in self.task_history if task[0] == 'started']
+
+    @property
+    def tasks_finished(self):
+        return [task[1] for task in self.task_history if task[0] == 'finished']
 
 
 class ScowEnv(object):
@@ -137,9 +146,9 @@ class ScowTask(Task):
         env.force = bool(kwargs.pop('force', False))
 
         # TODO: Do something useful with this logging
-        env.session.task_history.append(('started', self.__name__))
+        #env.session.task_history.append(('started', self.__name__))
         super(ScowTask, self).run(*args, **kwargs)
-        env.session.task_history.append(('finished', self.__name__))
+        #env.session.task_history.append(('finished', self.__name__))
 
 
 def scow_task(*args, **kwargs):
