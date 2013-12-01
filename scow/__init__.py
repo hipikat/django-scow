@@ -11,6 +11,7 @@ from fabric.api import (
     run,
     #prefix,
 )
+from fabric.state import output
 #from fabric.decorators import task
 from fabric.tasks import Task, WrappedCallableTask
 #import fabtools
@@ -139,9 +140,16 @@ class ScowEnv(object):
         }
         return dedent("""
             # Set up standard scow machine environment
-            export VIRTUALENVWRAPPER_ENV_DIR={venv_env_dir}
-            export VIRTUALENVWRAPPER_PROJECT_DIR={venv_prj_dir}
+            export VIRTUALENVWRAPPER_ENV_DIR="{venv_env_dir}"
+            export VIRTUALENVWRAPPER_PROJECT_DIR="{venv_prj_dir}"
+            export PYENV_ROOT="/opt/pyenv"
+            export PATH="$PYENV_ROOT/bin:$PATH"
+            eval "$(pyenv init -)"
             """.format(**scow_dirs))
+
+    @property
+    def pyenv_versions(self):
+        return [line for line in run('pyenv versions --bare') if line]
 
     def __init__(self, *args, **kwargs):
         self.session = ScowSession()
@@ -161,6 +169,7 @@ class ScowEnv(object):
             require.files.file(
                 path.join(self.CONFIG_DIR, 'profile_tasks.sh'),
                 contents=self.PROFILE_TASKS_SH_CONTENTS)
+            #run('touch')
 
         self.machine.initialised = True
 
@@ -190,12 +199,14 @@ class ScowTask(Task):
         # TODO: Do something useful with this logging
         #env.session.task_history.append(('started', self.__name__))
         env.session.task_stack.append(self.__name__)
-        print('>>>>>> task_stack: ' + str(env.session.task_stack))
+        if output.debug:
+            print('>>> task_stack: ' + str(env.session.task_stack))
         super(ScowTask, self).run(*args, **kwargs)
         env.session.finished_tasks.append(env.session.task_stack.pop())
-        print('<<<<<< task_stack: ' + str(env.session.task_stack))
+        if output.debug:
+            print('<<< task_stack: ' + str(env.session.task_stack))
         if not env.session.task_stack:
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
             env.machine.write_all()
         #env.session.task_history.append(('finished', self.__name__))
 

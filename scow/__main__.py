@@ -1,7 +1,7 @@
 
 from os import path
-from fabric.api import env
-from fabric.contrib import files as fab_files
+from fabric.api import env, run, sudo
+from fabric.contrib import files as fabric_files
 import fabtools
 from . import scow_task, pkgs, users, python, web, db
 
@@ -11,13 +11,22 @@ def init_droplet(*args, **kwargs):
     """Set up admin users and a web stack on the droplet"""
     pkgs.upgrade_packages()
     pkgs.install_packages()
-    python.install_python_env()
     users.create_missing_admins()
     installed_admins = env.machine.installed_admins or []
+    # TODO: Make sure this is done by functions in the users module too.
+    bash_rc_lines = [line for line in env.scow.SCOW_SHELL_SETUP_STRING.splitlines() if line]
     for user in installed_admins + ['root']:
-        fab_files.append(
-            path.join(fabtools.user.home_directory(user), '.profile'),
-            env.scow.SCOW_SHELL_SETUP_STRING)
+        admin_bash_rc = path.join(fabtools.user.home_directory(user), '.bashrc')
+        run('touch ' + admin_bash_rc)
+        for line in bash_rc_lines:
+            fabric_files.append(admin_bash_rc, line)
+    for line in bash_rc_lines:
+        fabric_files.append('/etc/profile', line)
+
+    python.install_python_env()
+    if env.project.PYTHON_VERSION not in env.scow.pyenv_versions:
+        sudo('pyenv install ' + env.project.PYTHON_VERSION)
+        sudo('pyenv rehash')
 
     # TODO: Check ALLOW_SYSTEM_PYTHON, and whether the requested project
     # Python version matches the installed system version.
