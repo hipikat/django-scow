@@ -25,14 +25,14 @@ def setup_local_python_tools(*args, **kwargs):
     with hide('stdout'):
         run('wget {} -O - | /usr/local/bin/python'.format(EZ_SETUP_URL))
     run('/usr/local/bin/easy_install pip')
-    #env.scow.registry.LOCAL_PYTHON_INSTALLED = True
     run('/usr/local/bin/pip install ' + ' '.join(PYTHON_SYSTEM_PACKAGES))
     venvwrapper_env_script = path.join(env.scow.CONFIG_DIR, 'venvwrapper-settings.sh')
     venvwrapper_dirs = {
         'workon_home': env.scow.VIRTUALENVWRAPPER_ENV_DIR,
         'project_home': env.scow.VIRTUALENVWRAPPER_PROJECT_DIR,
     }
-    require_dir(workon_home=env.scow.VIRTUALENVWRAPPER_ENV_DIR)
+    for venvwrapper_dir in venvwrapper_dirs.values():
+        require_dir(venvwrapper_dir)
     require.files.file(
         venvwrapper_env_script,
         contents=dedent("""
@@ -72,3 +72,7 @@ def setup_local_python(version=None, setup_tools=True):
     env.machine.setup_local_python = True
     if setup_tools:
         setup_local_python_tools()
+
+
+@scow_task
+def install_python_env

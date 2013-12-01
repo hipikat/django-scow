@@ -18,6 +18,7 @@ CORE_DEBIAN_PACKAGES = (
     'libncurses5-dev',
 
     'postgresql-server-dev-9.1',
+    'postgresql-client-9.1',
 
     'git',
 
@@ -37,7 +38,7 @@ def update_index():
 @scow_task
 def upgrade_packages():
     """Upgrade Debian packages (with a fresh index)"""
-    if update_index not in env.session.tasks_finished:
+    if 'update_index' not in env.session.task_stack:
         update_index()
     deb.upgrade()
 

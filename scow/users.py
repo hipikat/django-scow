@@ -39,6 +39,8 @@ def create_admin(username, sudoer=True):
     if sudoer:
         require.users.sudoer(username)
     #run_admin_postcreate(username)
+    # TODO: see if any work's required to make += work here
+    env.machine.installed_admins = env.machine.installed_admins + ['username']
 
 
 #@scow_task

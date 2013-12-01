@@ -1,6 +1,6 @@
 
 
-from fabric.api import env
+#from fabric.api import env
 from . import scow_task
 
 
@@ -11,4 +11,5 @@ def do_nothing(*args, **kwargs):
 
 @scow_task
 def set_trace(*args, **kwargs):
-    import pdb; pdb.set_trace() 
+    import pdb
+    pdb.set_trace()

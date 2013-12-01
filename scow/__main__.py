@@ -1,18 +1,25 @@
 
 from fabric.api import env
-from . import scow_task, ubuntu, users, python
+from fabric.contrib import files as fab_files
+from . import scow_task, pkgs, users, python, web, db
 
 
 @scow_task
 def init_droplet(*args, **kwargs):
     """Set up admin users and a web stack on the droplet"""
-    ubuntu.upgrade_packages()
-    ubuntu.install_packages()
+    pkgs.upgrade_packages()
+    pkgs.install_packages()
+    python.install_python_env()
     users.create_missing_admins()
-    if not getattr(env.project, 'USE_SYSTEM_PYTHON', False):
-        python.setup_local_python(env.project.PYTHON_VERSION)
-    #setup_postgres()
-    #setup_nginx()
+    for user in list(env.machine.installed_admins) + ['root']:
+        fab_files.append(env.scow.SCOW_SHELL_SETUP_STRING)
+
+    # TODO: Check ALLOW_SYSTEM_PYTHON, and whether the requested project
+    # Python version matches the installed system version.
+    #if not getattr(env.project, 'ALLOW_SYSTEM_PYTHON', False):
+    #python.setup_local_python(env.project.PYTHON_VERSION)
+    db.setup_postgres()
+    web.setup_nginx()
     #setup_uwsgi_emperor()
 
 

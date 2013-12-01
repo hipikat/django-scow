@@ -2,6 +2,7 @@
 #from contextlib import contextmanager
 from os import path
 from functools import wraps
+from textwrap import dedent
 #import posixpath
 
 #import fabric
@@ -21,8 +22,6 @@ TOP_LEVEL_ENV = ('machine', 'session')
 
 
 # TODO: Make these runtime-editable settings
-
-DB_ENGINE_POSTGRES = 'django.db.backends.postgresql_psycopg2'
 
 
 def require_dir(remote_dir):
@@ -46,6 +45,7 @@ class RemoteFilesystemCache(object):
         """Ensure the cache directory exists."""
         require_dir(remote_dir)
         self.__dict__['cache_dir'] = remote_dir
+        self.__dict__['open_attrs'] = {}
         #self.cache_dir = remote_dir
         #setattr(self, 'cache_dir', remote_dir)
 
@@ -53,6 +53,12 @@ class RemoteFilesystemCache(object):
         """Read and evaluate a string from `name` in the cache directory."""
         #if name == 'cache_dir':
         #    return super(RemoteFilesystemCache, self).__getattribute__('cache_dir')
+        #if hasattr(self, name):
+        #    return super(self, RemoteFilesystemCache).__getattribute__(name)
+        if name in self.__dict__:
+            return self.__dict__[name]
+        if name in self.open_attrs:
+            return self.open_attrs[name]
         cache_dir = self.__dict__['cache_dir']
         val = run('cat ' + path.join(cache_dir, name), warn_only=True, quiet=True)
         return eval(val) if val.succeeded else None
@@ -60,7 +66,16 @@ class RemoteFilesystemCache(object):
     def __setattr__(self, name, val):
         """Write a stringified value to a file in the cache directory."""
         #import pdb; pdb.set_trace()
-        require.files.file(path.join(self.__dict__['cache_dir'], name), contents=repr(val))
+        #if name in self.open_attrs:
+        self.open_attrs[name] = val
+        #else:
+        #    require.files.file(path.join(self.__dict__['cache_dir'], name), contents=repr(val))
+        #    self.open_attrs[name] = val
+
+    # TODO: Make this class able to act like a context manager?
+    def write_all(self):
+        for name, val in self.open_attrs.items():
+            require.files.file(path.join(self.__dict__['cache_dir'], name), contents=repr(val))
 
 
 class ScowSession(object):
@@ -69,16 +84,18 @@ class ScowSession(object):
     """
     # List of directories we know exist on the remote end
     seen_dirs = set()
-    # List of tuples of ('started|finished', task_fn)
-    task_history = []
-    
-    @property
-    def tasks_started(self):
-        return [task[1] for task in self.task_history if task[0] == 'started']
+    # Stack of currently running task name strings
+    task_stack = []
+    # List of completed task name strings
+    finished_tasks = []
 
-    @property
-    def tasks_finished(self):
-        return [task[1] for task in self.task_history if task[0] == 'finished']
+    #@property
+    #def tasks_started(self):
+    #    return [task[1] for task in self.task_history if task[0] == 'started']
+
+    #@property
+    #def tasks_finished(self):
+    #    return [task[1] for task in self.task_history if task[0] == 'finished']
 
 
 class ScowEnv(object):
@@ -101,8 +118,20 @@ class ScowEnv(object):
     APPS_VAR_DIR = '/var/local/scow/apps'
     # Configuration files used by scow on this machine
     CONFIG_DIR = '/etc/scow'
+    # Virtualenvwrapper's environment home (WORKON_HOME) directory
+    VIRTUALENVWRAPPER_ENV_DIR = '/var/env'
     # Home for projects installed by scow
-    PROJECTS_DIR = '/opt'
+    VIRTUALENVWRAPPER_PROJECT_DIR = '/opt'
+
+    def SCOW_SHELL_SETUP_STRING(self):
+        return dedent("""
+            # Source setup tasks required by scow:
+            # - Set virtualenvwrapper directories
+            #   VIRTUALENVWRAPPER_ENV_DIR = {venv_env_dir}
+            #   VIRTUALENVWRAPPER_PROJECT_DIR = {venv_prj_dir}
+            source /etc/scow/profile_tasks.sh
+            """.format(venv_env_dir=self.VIRTUALENVWRAPPER_ENV_DIR,
+                       venv_prj_dir=self.VIRTUALENVWRAPPER_PROJECT_DIR))
 
     def __init__(self, *args, **kwargs):
         self.session = ScowSession()
@@ -137,7 +166,7 @@ class ScowTask(Task):
 
         env.project_tag = ('-' + str(kwargs.pop('tag'))) if 'tag' in kwargs else ''
         env.project_tagged = env.project.PROJECT_NAME + env.project_tag
-        env.project_dir = path.join(env.scow.PROJECTS_DIR + env.project_tagged)
+        env.project_dir = path.join(env.scow.VIRTUALENVWRAPPER_PROJECT_DIR + env.project_tagged)
 
         env.local_project_dirs = env.project.DIRS
         env.remote_project_dirs = FHSDirs(env.project_dir)
@@ -147,7 +176,11 @@ class ScowTask(Task):
 
         # TODO: Do something useful with this logging
         #env.session.task_history.append(('started', self.__name__))
+        env.session.task_stack.append(self.__name__)
         super(ScowTask, self).run(*args, **kwargs)
+        env.session.finished_tasks.append(env.session.task_stack.pop())
+        if not env.session.task_stack:
+            env.machine.write_all()
         #env.session.task_history.append(('finished', self.__name__))
 
 
@@ -168,3 +201,5 @@ def scow_task(*args, **kwargs):
 
 
 from .__main__ import init_droplet, install_project
+# Silence PyFlake F401 warning (name imported but unused)
+(init_droplet, install_project)

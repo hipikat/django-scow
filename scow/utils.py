@@ -9,7 +9,6 @@ from fabtools import require
 #def append_admin_profiles(content=''):
 #    #fabric.contrib.files.append(
 #    for admin in env.project.ADMINS:
-       
 
 
 class remote_local_file(object):

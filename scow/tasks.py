@@ -2,21 +2,27 @@
 #from collections import namedtuple
 
 from os import path
-from textwrap import dedent
+#from textwrap import dedent
 
-import fabric
-from fabric.api import cd, env, run, sudo, prefix
+#import fabric
+from fabric.api import (
+    cd,
+    env,
+    run,
+    #sudo,
+    prefix,
+)
 from fabric.context_managers import hide
 #from fabric.tasks import Task
 #import fabtools
 from fabtools import (
-    deb,
+    #deb,
     files,
     require,
-    user,
+    #user,
     supervisor,
 )
-from project_settings import PYTHON_VERSION
+#from project_settings import PYTHON_VERSION
 from . import (
     scow_task,
     PYTHON_SYSTEM_PACKAGES,
@@ -52,59 +58,6 @@ def share_secrets():
     #fabric.contrib.
     #require.files.template_file()
 
-
-@scow_task
-def setup_postgres(*args, **kwargs):
-    require.postgres.server()
-    for admin in env.project.ADMINS:
-        if 'username' in admin:
-            require.postgres.user(admin['username'], 'insecure', superuser=True)
-    require.postgres.user('root', 'insecure', superuser=True)
-
-
-# TODO: Tangle with passwords properly
-@scow_task
-def setup_postgres_database(name, user, password, *args, **kwargs):
-    require.postgres.server()
-    require.postgres.user(user, 'insecure', superuser=True)
-    require.postgres.database(name, user)
-
-
-@scow_task
-def setup_django_database(db, *args, **kwargs):
-    if db['ENGINE'] == DB_ENGINE_POSTGRES:
-        setup_postgres_database(db['NAME'] + env.scow.project_tag, db['USER'], db['PASSWORD'])
-    else:
-        raise NotImplementedError("Unknown database engine: " + db['ENGINE'])
-
-
-@scow_task
-def setup_django_databases(*args, **kwargs):
-    for db in env.project.DATABASES.values():
-        setup_django_database(db, *args, **kwargs)
-
-
-@scow_task
-def setup_nginx(*args, **kwargs):
-    require.nginx.server()
-
-    #TODO: delete sites-enabled/default
-
-    #server_name = env.project.ROOT_FQDN
-    #if 'server_suffix' in kwargs:
-    #    server_name += '.' + kwargs['server_suffix']
-
-    ##proxy_url = 'http://unix:/path/to/backend.socket:/uri/'
-
-    #require.nginx.proxied_site(
-    #    server_name=server_name,
-    #    port=80,
-    #    proxy_url=proxy_url,
-    #)
-
-
-#@scow_task
-#def setup_uwsgi_emperor():
 
 
 @scow_task
