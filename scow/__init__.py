@@ -123,15 +123,25 @@ class ScowEnv(object):
     # Home for projects installed by scow
     VIRTUALENVWRAPPER_PROJECT_DIR = '/opt'
 
+    @property
     def SCOW_SHELL_SETUP_STRING(self):
         return dedent("""
             # Source setup tasks required by scow:
             # - Set virtualenvwrapper directories
-            #   VIRTUALENVWRAPPER_ENV_DIR = {venv_env_dir}
-            #   VIRTUALENVWRAPPER_PROJECT_DIR = {venv_prj_dir}
-            source /etc/scow/profile_tasks.sh
-            """.format(venv_env_dir=self.VIRTUALENVWRAPPER_ENV_DIR,
-                       venv_prj_dir=self.VIRTUALENVWRAPPER_PROJECT_DIR))
+            source {scow_config_dir}/profile_tasks.sh
+            """.format(scow_config_dir=self.CONFIG_DIR))
+
+    @property
+    def PROFILE_TASKS_SH_CONTENTS(self):
+        scow_dirs = {
+            'venv_env_dir': self.VIRTUALENVWRAPPER_ENV_DIR,
+            'venv_prj_dir': self.VIRTUALENVWRAPPER_PROJECT_DIR,
+        }
+        return dedent("""
+            # Set up standard scow machine environment
+            export VIRTUALENVWRAPPER_ENV_DIR={venv_env_dir}
+            export VIRTUALENVWRAPPER_PROJECT_DIR={venv_prj_dir}
+            """.format(**scow_dirs))
 
     def __init__(self, *args, **kwargs):
         self.session = ScowSession()
@@ -145,9 +155,13 @@ class ScowEnv(object):
         #for top_level_attr in TOP_LEVEL_ENV:
         #    env[top_level_attr] = getattr(self, top_level_attr)
 
-        if not self.machine.initialised:
+        if not self.machine.initialised or env.force:
             require_dir(self.APPS_VAR_DIR)
             require_dir(self.CONFIG_DIR)
+            require.files.file(
+                path.join(self.CONFIG_DIR, 'profile_tasks.sh'),
+                contents=self.PROFILE_TASKS_SH_CONTENTS)
+
         self.machine.initialised = True
 
         super(ScowEnv, self).__init__(*args, **kwargs)
@@ -157,7 +171,8 @@ class ScowTask(Task):
     """Add local and remote project-related variables to Fabric's env."""
 
     def run(self, *args, **kwargs):
-
+        if 'force' not in env:
+            env.force = bool(kwargs.pop('force', False))
         if 'project' not in env:
             import project_settings
             env.project = project_settings
@@ -172,14 +187,15 @@ class ScowTask(Task):
         env.remote_project_dirs = FHSDirs(env.project_dir)
         env.project_var_dir = path.join(env.scow.APPS_VAR_DIR, env.project_tagged)
 
-        env.force = bool(kwargs.pop('force', False))
-
         # TODO: Do something useful with this logging
         #env.session.task_history.append(('started', self.__name__))
         env.session.task_stack.append(self.__name__)
+        print('>>>>>> task_stack: ' + str(env.session.task_stack))
         super(ScowTask, self).run(*args, **kwargs)
         env.session.finished_tasks.append(env.session.task_stack.pop())
+        print('<<<<<< task_stack: ' + str(env.session.task_stack))
         if not env.session.task_stack:
+            import pdb; pdb.set_trace()
             env.machine.write_all()
         #env.session.task_history.append(('finished', self.__name__))
 

@@ -2,15 +2,16 @@
 from os import path
 from textwrap import dedent
 import fabric
-from fabric.api import env, run, cd
+from fabric.api import env, run, cd, sudo
 from fabric.context_managers import hide
-from fabtools import require
+from fabtools import require, git, files
 from . import scow_task, require_dir
 
 
 PYTHON_SRC_DIR = 'Python-{version}'
 PYTHON_SOURCE_URL = 'http://www.python.org/ftp/python/{version}/' + PYTHON_SRC_DIR + '.tgz'
 EZ_SETUP_URL = 'https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py'
+PYENV_GIT_URL = 'git://github.com/yyuu/pyenv.git'
 
 PYTHON_SYSTEM_PACKAGES = (
     #'uwsgi',
@@ -75,4 +76,10 @@ def setup_local_python(version=None, setup_tools=True):
 
 
 @scow_task
-def install_python_env
+def install_python_env():
+    pyenv_exists = files.is_dir('/opt/pyenv')
+    if not pyenv_exists or env.force:
+        if pyenv_exists:
+            sudo('rm -Rf /opt/pyenv')
+        git.clone('https://github.com/yyuu/pyenv.git', '/opt/pyenv', use_sudo=True)
+    

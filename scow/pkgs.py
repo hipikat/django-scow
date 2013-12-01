@@ -32,6 +32,7 @@ CORE_DEBIAN_PACKAGES = (
 @scow_task
 def update_index():
     """Update the Debian package index"""
+    # TODO: check that it's been more than a day
     deb.update_index()
 
 

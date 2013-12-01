@@ -40,7 +40,7 @@ def create_admin(username, sudoer=True):
         require.users.sudoer(username)
     #run_admin_postcreate(username)
     # TODO: see if any work's required to make += work here
-    env.machine.installed_admins = env.machine.installed_admins + ['username']
+    env.machine.installed_admins = sorted((env.machine.installed_admins or []) + [username])
 
 
 #@scow_task
