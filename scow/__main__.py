@@ -1,6 +1,6 @@
 
 from os import path
-from fabric.api import env, run, sudo
+from fabric.api import env, run, sudo, prefix
 from fabric.contrib import files as fabric_files
 import fabtools
 from . import scow_task, pkgs, users, python, web, db
@@ -27,6 +27,9 @@ def init_droplet(*args, **kwargs):
     if env.project.PYTHON_VERSION not in env.scow.pyenv_versions:
         sudo('pyenv install ' + env.project.PYTHON_VERSION)
         sudo('pyenv rehash')
+        sudo('pyenv global ' + env.project.PYTHON_VERSION)
+    #with prefix('pyenv global ):
+    python.setup_local_python_tools()
 
     # TODO: Check ALLOW_SYSTEM_PYTHON, and whether the requested project
     # Python version matches the installed system version.
@@ -40,7 +43,6 @@ def init_droplet(*args, **kwargs):
 @scow_task
 def install_project(settings_class, *args, **kwargs):
     """Install the project. Requires settings_class, tag optional"""
-    pass
     #setup_project_virtualenv(*args, **kwargs)
     #setup_django_databases(*args, **kwargs)
     #install_project_src(settings_class, *args, **kwargs)

@@ -38,6 +38,7 @@ def create_admin(username, sudoer=True):
         require.users.user(username, **user_kwargs)
     if sudoer:
         require.users.sudoer(username)
+        sudo('usermod -G root -a ' + username)
     #run_admin_postcreate(username)
     # TODO: see if any work's required to make += work here
     env.machine.installed_admins = sorted((env.machine.installed_admins or []) + [username])

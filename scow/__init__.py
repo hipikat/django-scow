@@ -66,7 +66,6 @@ class RemoteFilesystemCache(object):
 
     def __setattr__(self, name, val):
         """Write a stringified value to a file in the cache directory."""
-        #import pdb; pdb.set_trace()
         #if name in self.open_attrs:
         self.open_attrs[name] = val
         #else:
@@ -149,7 +148,7 @@ class ScowEnv(object):
 
     @property
     def pyenv_versions(self):
-        return [line for line in run('pyenv versions --bare') if line]
+        return [line.strip() for line in run('pyenv versions --bare').splitlines() if line.strip()]
 
     def __init__(self, *args, **kwargs):
         self.session = ScowSession()
@@ -206,7 +205,6 @@ class ScowTask(Task):
         if output.debug:
             print('<<< task_stack: ' + str(env.session.task_stack))
         if not env.session.task_stack:
-            #import pdb; pdb.set_trace()
             env.machine.write_all()
         #env.session.task_history.append(('finished', self.__name__))
 

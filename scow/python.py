@@ -24,7 +24,7 @@ PYTHON_SYSTEM_PACKAGES = (
 def setup_local_python_tools(*args, **kwargs):
     # Install easy_install and pip
     with hide('stdout'):
-        run('wget {} -O - | /usr/local/bin/python'.format(EZ_SETUP_URL))
+        run('wget {} -O - | python'.format(EZ_SETUP_URL))
     run('/usr/local/bin/easy_install pip')
     run('/usr/local/bin/pip install ' + ' '.join(PYTHON_SYSTEM_PACKAGES))
     venvwrapper_env_script = path.join(env.scow.CONFIG_DIR, 'venvwrapper-settings.sh')
@@ -40,6 +40,8 @@ def setup_local_python_tools(*args, **kwargs):
             # Virtualenv wrapper settings used by django-scow
             export WORKON_HOME={workon_home}
             export PROJECT_HOME={project_home}
+            export VIRTUALENVWRAPPER_HOOK_DIR={workon_home}
+            export VIRTUALENVWRAPPER_LOG_DIR={workon_home}
             """.format(**venvwrapper_dirs)))
 
     fabric.contrib.files.append(
